@@ -251,7 +251,7 @@ guild& guild::set_name(const std::string& n) {
 }
 
 user* guild_member::get_user() const {
-	return find_user(user_id);
+	return reinterpret_cast<user*>(find_user(user_id));
 }
 
 bool guild_member::is_deaf() const {
