@@ -132,7 +132,7 @@ void cluster::interaction_response_create(snowflake interaction_id, const std::s
 		if (callback) {
 			callback(confirmation_callback_t(this, confirmation(), http));
 		}
-	}, r.msg->filename, r.msg->filecontent, r.msg->filemimetype);
+	}, r.msg.filename, r.msg.filecontent, r.msg.filemimetype);
 }
 
 void cluster::interaction_response_edit(const std::string &token, const message &m, command_completion_event_t callback) {
@@ -141,6 +141,10 @@ void cluster::interaction_response_edit(const std::string &token, const message 
 			callback(confirmation_callback_t(this, confirmation(), http));
 		}
 	}, m.filename, m.filecontent, m.filemimetype);
+}
+
+void cluster::interaction_response_get_original(const std::string &token, command_completion_event_t callback) {
+	rest_request<message>(this, API_PATH "/webhooks",std::to_string(me.id), utility::url_encode(token) + "/messages/@original", m_get, "", callback);
 }
 
 void cluster::interaction_followup_create(const std::string &token, const message &m, command_completion_event_t callback) {
@@ -175,4 +179,8 @@ void cluster::interaction_followup_get(const std::string &token, snowflake messa
 	rest_request<message>(this, API_PATH "/webhooks",std::to_string(me.id), utility::url_encode(token) + "/messages/" + std::to_string(message_id), m_get, "", callback);
 }
 
-};
+void cluster::interaction_followup_get_original(const std::string &token, command_completion_event_t callback) {
+	rest_request<message>(this, API_PATH "/webhooks",std::to_string(me.id), utility::url_encode(token) + "/messages/@original", m_get, "", callback);
+}
+
+} // namespace dpp

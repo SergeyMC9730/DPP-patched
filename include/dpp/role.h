@@ -2,6 +2,7 @@
  *
  * D++, A Lightweight C++ library for Discord
  *
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright 2021 Craig Edwards and D++ contributors 
  * (https://github.com/brainboxdotcc/DPP/graphs/contributors)
  *
@@ -37,6 +38,7 @@ enum role_flags : uint8_t {
 	r_premium_subscriber =	0b00001000, //!< Whether this is the guild's booster role
 	r_available_for_purchase = 0b00010000, //!< Whether the role is available for purchase
 	r_guild_connections = 0b00100000, //!< Whether the role is a guild's linked role
+	r_in_prompt			= 0b01000000, //!< Whether the role can be selected by members in an onboarding prompt
 };
 
 /**
@@ -287,6 +289,11 @@ public:
 	 * @return bool True if the role is a linked role
 	 */
 	bool is_linked() const;
+	/**
+	 * @brief True if the role can be selected by members in an onboarding prompt
+	 * @return bool True if the role can be selected by members in an onboarding prompt
+	 */
+	bool is_selectable_in_prompt() const;
 	/**
 	 * @brief True if has create instant invite permission
 	 * @note Having the administrator permission causes this method to always return true
@@ -584,6 +591,13 @@ public:
 	 */
 	bool has_use_soundboard() const;
 	/**
+	 * @brief True if has the use external sounds permission.
+	 * @note Having the administrator permission causes this method to always return true
+	 * Channel specific overrides may apply to permissions.
+	 * @return bool True if user has the use external sounds permission or is administrator.
+	 */
+	bool has_use_external_sounds() const;
+	/**
 	 * @brief True if has the send voice messages permission.
 	 * @note Having the administrator permission causes this method to always return true
 	 * Channel specific overrides may apply to permissions.
@@ -686,5 +700,5 @@ typedef std::unordered_map<snowflake, role> role_map;
 /** A group of application_role_connection_metadata objects */
 typedef std::vector<application_role_connection_metadata> application_role_connection_metadata_list;
 
-};
+} // namespace dpp
 

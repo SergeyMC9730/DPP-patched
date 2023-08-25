@@ -191,7 +191,9 @@ typedef std::variant<
 		event_member,
 		event_member_map,
 		automod_rule,
-		automod_rule_map
+		automod_rule_map,
+		onboarding,
+		welcome_screen
 	> confirmable_t;
 
 /**
@@ -314,4 +316,4 @@ typedef std::function<void(const confirmation_callback_t&)> command_completion_e
  * @brief Automatically JSON encoded HTTP result
  */
 typedef std::function<void(json&, const http_request_completion_t&)> json_encode_t;
-};
+} // namespace dpp

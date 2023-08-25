@@ -89,13 +89,16 @@ class DPP_EXPORT user : public managed, public json_interface<user>  {
 public:
 	/** Discord username */
 	std::string username;
+	/** Global display name */
+	std::string global_name;
 	/** Avatar hash */
 	utility::iconhash avatar;
 	/** Flags built from a bitmask of values in dpp::user_flags */
 	uint32_t flags;
 	/** Discriminator (aka tag), 4 digits usually displayed with leading zeroes.
 	 *
-	 * @note To print the discriminator with leading zeroes, use format_username()
+	 * @note To print the discriminator with leading zeroes, use format_username(). 
+	 * 0 for users that have migrated to the new username format.
 	 */
 	uint16_t discriminator;
 	/** Reference count of how many guilds this user is in */
@@ -109,7 +112,7 @@ public:
 	/**
 	 * @brief Destroy the user object
 	 */
-	virtual ~user();
+	virtual ~user() = default;
 
 	/**
 	* @brief Create a mentionable user.
@@ -356,7 +359,7 @@ public:
 	/**
 	 * @brief Destroy the user identified object
 	 */
-	virtual ~user_identified();
+	virtual ~user_identified() = default;
 
 	/**
 	 * @brief Return true if user has an animated banner
@@ -403,4 +406,4 @@ void from_json(const nlohmann::json& j, user_identified& u);
 /** A group of users */
 typedef std::unordered_map<snowflake, user> user_map;
 
-};
+} // namespace dpp

@@ -2,6 +2,7 @@
  *
  * D++, A Lightweight C++ library for Discord
  *
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright 2021 Craig Edwards and D++ contributors 
  * (https://github.com/brainboxdotcc/DPP/graphs/contributors)
  *
@@ -55,7 +56,7 @@ namespace dpp {
 		 * @param format the wished format to return. Must be one of the formats passed in `allowed_formats`, otherwise it returns an empty string
 		 * @param size the image size which will be appended as a querystring to the url.
 		 * It must be any power of two between 16 and 4096, otherwise no querystring will be appended (discord then returns the image as their default size)
-		 * @param prefer_animated Whether the user prefers gif format. If true, it'll return gif format whenever the emoji is available as animated.
+		 * @param prefer_animated Whether the user prefers gif format. If true, it'll return gif format whenever the image is available as animated.
 		 * In this case, the `format`-parameter is only used for non-animated images.
 		 * @param is_animated Whether the image is actually animated or not
 		 * @return std::string endpoint url or empty string
@@ -67,11 +68,11 @@ namespace dpp {
 		 * @see https://discord.com/developers/docs/reference#image-formatting-cdn-endpoints
 		 * @param allowed_formats A vector of supported formats for the endpoint from the discord docs
 		 * @param path_without_extension The path for the endpoint (without the extension e.g. `.png`)
-		 * @param hash The hash (optional). If passed, it will be prefixed with `a_` for animated images (`is_animated`=true)
+		 * @param hash The hash (optional). If not empty, it will be prefixed with `a_` for animated images (`is_animated`=true)
 		 * @param format the wished format to return. Must be one of the formats passed in `allowed_formats`, otherwise it returns an empty string
 		 * @param size the image size which will be appended as a querystring to the url.
 		 * It must be any power of two between 16 and 4096, otherwise no querystring will be appended (discord then returns the image as their default size)
-		 * @param prefer_animated Whether the user prefers gif format. If true, it'll return gif format whenever the emoji is available as animated.
+		 * @param prefer_animated Whether the user prefers gif format. If true, it'll return gif format whenever the image is available as animated.
 		 * In this case, the `format`-parameter is only used for non-animated images.
 		 * @param is_animated Whether the image is actually animated or not
 		 * @return std::string endpoint url or empty string
@@ -252,6 +253,13 @@ namespace dpp {
 		 * @return bool True if voice support is compiled in (libsodium/libopus) 
 		 */
 		bool DPP_EXPORT has_voice();
+
+		/**
+		 * @brief Returns true if D++ was built with coroutine support
+		 * 
+		 * @return bool True if coroutines are supported 
+		 */
+		bool DPP_EXPORT is_coro_enabled();
 
 		/**
 		 * @brief Convert a byte count to display value
@@ -492,7 +500,7 @@ namespace dpp {
 		* @param is_animated is emoji animated.
 		* @return std::string The formatted mention of the emoji.
 		*/
-		std::string DPP_EXPORT emoji_mention(const std::string& name, const snowflake& id, bool is_animated = false);
+		std::string DPP_EXPORT emoji_mention(std::string_view name, snowflake id, bool is_animated = false);
 
 		/**
 		* @brief Create a mentionable role.
@@ -500,6 +508,68 @@ namespace dpp {
 		* @return std::string The formatted mention of the role.
 		*/
 		std::string DPP_EXPORT role_mention(const snowflake& id);
+
+#ifdef _DOXYGEN_
+		/**
+		 * @brief Get the mime type for an image type.
+		 * @param type Image type
+		 * @return std::string The mime type for this image type
+		 */
+		std::string DPP_EXPORT mime_type(image_type type);
+
+		/**
+		 * @brief Get the mime type for a sticker format.
+		 * @param format Sticker format
+		 * @return std::string The mime type for this sticker format
+		 */
+		std::string DPP_EXPORT mime_type(sticker_format format);
+
+		/**
+		 * @brief Get the file extension for an image type.
+		 * @param type Image type
+		 * @return std::string The file extension (e.g. ".png") for this image type
+		 */
+		std::string DPP_EXPORT file_extension(image_type type);
+
+		/**
+		 * @brief Get the file extension for a sticker format.
+		 * @param format Sticker format
+		 * @return std::string The file extension (e.g. ".png") for this sticker format
+		 */
+		std::string DPP_EXPORT file_extension(sticker_format format);
+#else
+		/**
+		 * @brief Get the mime type for an image type.
+		 * @param type Image type
+		 * @return std::string The mime type for this image type
+		 */
+		template <typename T>
+		extern std::enable_if_t<std::is_same_v<T, image_type>, std::string> DPP_EXPORT mime_type(T type);
+
+		/**
+		 * @brief Get the mime type for a sticker format.
+		 * @param format Sticker format
+		 * @return std::string The mime type for this sticker format
+		 */
+		template <typename T>
+		extern std::enable_if_t<std::is_same_v<T, sticker_format>, std::string> DPP_EXPORT mime_type(T format);
+
+		/**
+		 * @brief Get the file extension for an image type.
+		 * @param type Image type
+		 * @return std::string The file extension (e.g. ".png") for this image type
+		 */
+		template <typename T>
+		extern std::enable_if_t<std::is_same_v<T, image_type>, std::string> DPP_EXPORT file_extension(T type);
+
+		/**
+		 * @brief Get the file extension for a sticker format.
+		 * @param format Sticker format
+		 * @return std::string The file extension (e.g. ".png") for this sticker format
+		 */
+		template <typename T>
+		extern std::enable_if_t<std::is_same_v<T, sticker_format>, std::string> DPP_EXPORT file_extension(T format);
+#endif
 
 		/**
 		 * @brief Returns the library's version string
@@ -533,5 +603,5 @@ namespace dpp {
 		 */
 		void DPP_EXPORT set_thread_name(const std::string& name);
 
-	};
-};
+	} // namespace utility
+} // namespace dpp

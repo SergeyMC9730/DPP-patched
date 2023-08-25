@@ -315,31 +315,22 @@ struct DPP_EXPORT interaction_response : public json_interface<interaction_respo
 	 * Should be one of ir_pong, ir_channel_message_with_source,
 	 * or ir_deferred_channel_message_with_source.
 	 */
-	interaction_response_type type;
+	interaction_response_type type{};
 
 	/**
-	 * @brief A message object. This pointer is always valid
-	 * while the containing interaction_response exists.
+	 * @brief Message tied to this response.
 	 */
-	struct message* msg;
+	message msg{};
 
 	/**
 	 * @brief Array of up to 25 autocomplete choices
 	 */
-	std::vector<command_option_choice> autocomplete_choices;
+	std::vector<command_option_choice> autocomplete_choices{};
 
 	/**
 	 * @brief Construct a new interaction response object
 	 */
-	interaction_response();
-
-	/**
-	 * @brief Construct a new interaction response object
-	 *
-	 * @param t Type of reply
-	 * @param m Message to reply with
-	 */
-	interaction_response(interaction_response_type t, const struct message& m);
+	interaction_response() = default;
 
 	/**
 	 * @brief Construct a new interaction response object
@@ -347,6 +338,22 @@ struct DPP_EXPORT interaction_response : public json_interface<interaction_respo
 	 * @param t Type of reply
 	 */
 	interaction_response(interaction_response_type t);
+
+	/**
+	 * @brief Construct a new interaction response object
+	 *
+	 * @param t Type of reply
+	 * @param m Message to reply with
+	 */
+	interaction_response(interaction_response_type t, const message& m);
+
+	/**
+	 * @brief Construct a new interaction response object
+	 *
+	 * @param t Type of reply
+	 * @param m Message to reply with
+	 */
+	interaction_response(interaction_response_type t, message&& m);
 
 	/**
 	 * @brief Fill object properties from JSON
@@ -374,7 +381,7 @@ struct DPP_EXPORT interaction_response : public json_interface<interaction_respo
 	/**
 	 * @brief Destroy the interaction response object
 	 */
-	virtual ~interaction_response();
+	virtual ~interaction_response() = default;
 
 };
 
@@ -395,7 +402,7 @@ public:
 	std::string custom_id;
 
 	/**
-	 * @brief Title of the modal form box
+	 * @brief Title of the modal form box (max 25 characters)
 	 */
 	std::string title;
 
@@ -474,35 +481,42 @@ public:
 };
 
 /**
- * @brief Resolved snowflake ids to users, guild members, roles and channels.
+ * @brief Resolved snowflake ids to users, guild members, roles and channels. You can use the `interaction::get_resolved_*` methods to easily get a resolved set
  */
 struct DPP_EXPORT command_resolved {
 	/**
 	 * @brief Resolved users
+	 * @see interaction::get_resolved_user
 	 */
 	std::map<dpp::snowflake, dpp::user> users;
 	/**
 	 * @brief Resolved guild members
+	 * @see interaction::get_resolved_member
 	 */
 	std::map<dpp::snowflake, dpp::guild_member> members;
 	/**
-	 * @brief Resolved total guild member permissions in the channel, including overwrites
+	 * @brief Resolved total guild member permissions including channel overwrites, permissions from roles and administrator privileges
+	 * @see interaction::get_resolved_permission
 	 */
 	std::map<dpp::snowflake, permission> member_permissions;
 	/**
 	 * @brief Resolved roles
+	 * @see interaction::get_resolved_role
 	 */
 	std::map<dpp::snowflake, dpp::role> roles;
 	/**
 	 * @brief Resolved channels
+	 * @see interaction::get_resolved_channel
 	 */
 	std::map<dpp::snowflake, dpp::channel> channels;
 	/**
 	 * @brief Resolved messages
+	 * @see interaction::get_resolved_message
 	 */
 	std::map<dpp::snowflake, dpp::message> messages;
 	/**
 	 * @brief Resolved attachments
+	 * @see interaction::get_resolved_attachment
 	 */
 	std::map<dpp::snowflake, dpp::attachment> attachments;
 };
@@ -695,7 +709,7 @@ public:
 	user usr;                                                   //!< User object for the invoking user
 	std::string token;                                          //!< a continuation token for responding to the interaction
 	uint8_t version;                                            //!< read-only property, always 1
-	command_resolved resolved;				    //!< Resolved user/role etc
+	command_resolved resolved;				    //!< Resolved data e.g. users, members, roles, channels, permissions, etc.
 	std::string locale;                                         //!< User's [locale](https://discord.com/developers/docs/reference#locales) (language)
 	std::string guild_locale;                                   //!< Guild's locale (language) - for guild interactions only
 	cache_policy_t cache_policy;                                //!< Cache policy from cluster
@@ -790,7 +804,7 @@ public:
 	 * use the cache or require any extra API calls.
 	 * 
 	 * @param id User snowflake ID to find
-	 * @return const dpp::permission& permissions for the user including overrides on
+	 * @return const dpp::permission& total permissions for the user including overrides on
 	 * the channel where the command was issued.
 	 * @throws dpp::logic_exception on object not found in resolved set
 	 */
@@ -1072,9 +1086,18 @@ public:
 	slashcommand(const std::string &_name, const std::string &_description, const dpp::snowflake _application_id);
 
 	/**
+	 * @brief Construct a new slashcommand object
+	 *
+	 * @param _name Command name
+	 * @param _type Context menu type
+	 * @param _application_id Application id (usually the bot's user id)
+	 */
+	slashcommand(const std::string &_name, const slashcommand_contextmenu_type _type, const dpp::snowflake _application_id);
+
+	/**
 	 * @brief Destroy the slashcommand object
 	 */
-	virtual ~slashcommand();
+	virtual ~slashcommand() = default;
 
 	/**
 	 * @brief Add a localisation for this slash command
@@ -1222,4 +1245,4 @@ typedef std::unordered_map<snowflake, slashcommand> slashcommand_map;
  */
 typedef std::unordered_map<snowflake, guild_command_permissions> guild_command_permissions_map;
 
-};
+} // namespace dpp

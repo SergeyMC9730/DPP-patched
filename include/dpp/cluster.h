@@ -39,17 +39,15 @@
 #include <dpp/queues.h>
 #include <dpp/cache.h>
 #include <dpp/intents.h>
-#include <dpp/discordevents.h> 
+#include <dpp/discordevents.h>
 #include <dpp/sync.h>
 #include <algorithm>
 #include <iostream>
 #include <shared_mutex>
 #include <cstring>
 #include <dpp/restresults.h>
-#include <dpp/coro.h>
 #include <dpp/event_router.h>
-
-
+#include <dpp/coro/async.h>
 
 namespace dpp {
 
@@ -233,6 +231,16 @@ public:
 	cluster(const cluster&&) = delete;
 
 	/**
+	 * @brief dpp::cluster is non-copyable
+	 */
+        cluster& operator=(const cluster&) = delete;
+
+	/**
+	 * @brief dpp::cluster is non-moveable
+	 */
+        cluster& operator=(const cluster&&) = delete;
+
+	/**
 	 * @brief Destroy the cluster object
 	 */
 	virtual ~cluster();
@@ -263,6 +271,7 @@ public:
 	 * 
 	 * @param mode websocket protocol to use, either ws_json or ws_etf.
 	 * @return cluster& Reference to self for chaining.
+	 * @throw dpp::logic_exception If called after the cluster is started (this is not supported)
 	 */
 	cluster& set_websocket_protocol(websocket_protocol_t mode);
 
@@ -347,6 +356,16 @@ public:
 	 * @note If the timer has an on_stop lambda, the on_stop lambda will be called.
 	 */
 	bool stop_timer(timer t);
+
+#ifdef DPP_CORO
+	/**
+	 * @brief Get an awaitable to wait a certain amount of seconds. Use the co_await keyword on its return value to suspend the coroutine until the timer ends
+	 *
+	 * @param seconds How long to wait for
+	 * @return async<timer> Object that can be co_await-ed to suspend the function for a certain time
+	 */
+	[[nodiscard]] async<timer> co_sleep(uint64_t seconds);
+#endif
 
 	/**
 	 * @brief Get the dm channel for a user id
@@ -1290,6 +1309,16 @@ public:
 	void interaction_response_edit(const std::string &token, const message &m, command_completion_event_t callback = utility::log_error());
 
 	/**
+	 * @brief Get the original response to a slash command
+	 *
+	 * @see https://discord.com/developers/docs/interactions/receiving-and-responding#get-original-interaction-response
+	 * @param token Token for the interaction webhook
+	 * @param callback Function to call when the API call completes.
+	 * On success the callback will contain a dpp::message object in confirmation_callback_t::value. On failure, the value is undefined and confirmation_callback_t::is_error() method will return true. You can obtain full error details with confirmation_callback_t::get_error().
+	 */
+	void interaction_response_get_original(const std::string &token, command_completion_event_t callback = utility::log_error());
+
+	/**
 	 * @brief Create a followup message to a slash command
 	 *
 	 * @see https://discord.com/developers/docs/interactions/receiving-and-responding#create-interaction-response
@@ -1344,6 +1373,17 @@ public:
 	 * On success the callback will contain a dpp::message object in confirmation_callback_t::value. On failure, the value is undefined and confirmation_callback_t::is_error() method will return true. You can obtain full error details with confirmation_callback_t::get_error().
 	 */
 	void interaction_followup_get(const std::string &token, snowflake message_id, command_completion_event_t callback);
+	
+	/**
+	 * @brief Get the original followup message to a slash command
+	 * This is an alias for cluster::interaction_response_get_original
+	 * @see cluster::interaction_response_get_original
+	 * 
+	 * @param token Token for the interaction webhook
+	 * @param callback Function to call when the API call completes.
+	 * On success the callback will contain a dpp::message object in confirmation_callback_t::value. On failure, the value is undefined and confirmation_callback_t::is_error() method will return true. You can obtain full error details with confirmation_callback_t::get_error().
+	 */
+	void interaction_followup_get_original(const std::string &token, command_completion_event_t callback = utility::log_error());
 
 	/**
 	 * @brief Create a global slash command (a bot can have a maximum of 100 of these).
@@ -2621,6 +2661,57 @@ public:
 	void guild_get_vanity(snowflake guild_id, command_completion_event_t callback);
 
 	/**
+	 * @brief Get the guild's onboarding configuration
+	 *
+	 * @see https://discord.com/developers/docs/resources/guild#get-guild-onboarding
+	 * @param o The onboarding object
+	 * @param callback Function to call when the API call completes.
+	 * On success the callback will contain a dpp::onboarding object in confirmation_callback_t::value filled to match the vanity url. On failure, the value is undefined and confirmation_callback_t::is_error() method will return true. You can obtain full error details with confirmation_callback_t::get_error().
+	 */
+	void guild_get_onboarding(snowflake guild_id, command_completion_event_t callback);
+
+	/**
+	 * @brief Edit the guild's onboarding configuration
+	 *
+	 * Requires the `MANAGE_GUILD` and `MANAGE_ROLES` permissions.
+	 *
+	 * @note Onboarding enforces constraints when enabled. These constraints are that there must be at least 7 Default Channels and at least 5 of them must allow sending messages to the \@everyone role. The `onboarding::mode` field modifies what is considered when enforcing these constraints.
+	 *
+	 * @see https://discord.com/developers/docs/resources/guild#modify-guild-onboarding
+	 * @note This method supports audit log reasons set by the cluster::set_audit_reason() method.
+	 * @param o The onboarding object
+	 * @param callback Function to call when the API call completes.
+	 * On success the callback will contain a dpp::onboarding object in confirmation_callback_t::value filled to match the vanity url. On failure, the value is undefined and confirmation_callback_t::is_error() method will return true. You can obtain full error details with confirmation_callback_t::get_error().
+	 */
+	void guild_edit_onboarding(const struct onboarding& o, command_completion_event_t callback = utility::log_error());
+
+	/**
+	 * @brief Get the guild's welcome screen
+	 *
+	 * If the welcome screen is not enabled, the `MANAGE_GUILD` permission is required.
+	 *
+	 * @see https://discord.com/developers/docs/resources/guild#get-guild-welcome-screen
+	 * @param guild_id The guild ID to get the welcome screen from
+	 * @param callback Function to call when the API call completes.
+	 * On success the callback will contain a dpp::welcome_screen object in confirmation_callback_t::value filled to match the vanity url. On failure, the value is undefined and confirmation_callback_t::is_error() method will return true. You can obtain full error details with confirmation_callback_t::get_error().
+	 */
+	void guild_get_welcome_screen(snowflake guild_id, command_completion_event_t callback);
+
+	/**
+	 * @brief Edit the guild's welcome screen
+	 *
+	 * Requires the `MANAGE_GUILD` permission. May fire a `Guild Update` Gateway event.
+	 *
+	 * @see https://discord.com/developers/docs/resources/guild#modify-guild-welcome-screen
+	 * @param guild_id The guild ID to edit the welcome screen for
+	 * @param welcome_screen The welcome screen
+	 * @param enabled Whether the welcome screen should be enabled or disabled
+	 * @param callback Function to call when the API call completes.
+	 * On success the callback will contain a dpp::welcome_screen object in confirmation_callback_t::value filled to match the vanity url. On failure, the value is undefined and confirmation_callback_t::is_error() method will return true. You can obtain full error details with confirmation_callback_t::get_error().
+	 */
+	void guild_edit_welcome_screen(snowflake guild_id, const struct welcome_screen& welcome_screen, bool enabled, command_completion_event_t callback = utility::log_error());
+
+	/**
 	 * @brief Create a webhook
 	 * @note This method supports audit log reasons set by the cluster::set_audit_reason() method.
 	 * @see https://discord.com/developers/docs/resources/webhook#create-webhook
@@ -2996,7 +3087,7 @@ public:
 	void current_user_leave_guild(snowflake guild_id, command_completion_event_t callback = utility::log_error());
 
 	/**
-	 * @brief Create a thread in forum channel
+	 * @brief Create a thread in a forum or media channel
 	 * @note This method supports audit log reasons set by the cluster::set_audit_reason() method.
 	 *
 	 * @see https://discord.com/developers/docs/resources/channel#start-thread-in-forum-channel
@@ -3026,6 +3117,17 @@ public:
 	 * On success the callback will contain a dpp::thread object in confirmation_callback_t::value. On failure, the value is undefined and confirmation_callback_t::is_error() method will return true. You can obtain full error details with confirmation_callback_t::get_error().
 	 */
 	void thread_create(const std::string& thread_name, snowflake channel_id, uint16_t auto_archive_duration, channel_type thread_type, bool invitable, uint16_t rate_limit_per_user, command_completion_event_t callback = utility::log_error());
+
+	/**
+	 * @brief Edit a thread
+	 * @note This method supports audit log reasons set by the cluster::set_audit_reason() method.
+	 *
+	 * @see https://discord.com/developers/docs/topics/threads#editing-deleting-threads
+	 * @param t Thread to edit
+	 * @param callback Function to call when the API call completes.
+	 * On success the callback will contain a dpp::thread object in confirmation_callback_t::value. On failure, the value is undefined and confirmation_callback_t::is_error() method will return true. You can obtain full error details with confirmation_callback_t::get_error().
+	 */
+	void thread_edit(const thread &t, command_completion_event_t callback = utility::log_error());
 
 	/**
 	 * @brief Create a thread with a message (Discord: ID of a thread is same as message ID)
@@ -3111,7 +3213,7 @@ public:
 	 * @brief Get public archived threads in a channel (Sorted by archive_timestamp in descending order)
 	 * @see https://discord.com/developers/docs/resources/channel#list-public-archived-threads
 	 * @param channel_id Channel to get public archived threads for
-	 * @param before_timestamp Get threads before this timestamp
+	 * @param before_timestamp Get threads archived before this timestamp
 	 * @param limit Number of threads to get
 	 * @param callback Function to call when the API call completes
 	 * On success the callback will contain a dpp::thread_map object in confirmation_callback_t::value. On failure, the value is undefined and confirmation_callback_t::is_error() method will return true. You can obtain full error details with confirmation_callback_t::get_error().
@@ -3122,7 +3224,7 @@ public:
 	 * @brief Get private archived threads in a channel (Sorted by archive_timestamp in descending order)
 	 * @see https://discord.com/developers/docs/resources/channel#list-private-archived-threads
 	 * @param channel_id Channel to get public archived threads for
-	 * @param before_timestamp Get threads before this timestamp
+	 * @param before_timestamp Get threads archived before this timestamp
 	 * @param limit Number of threads to get
 	 * @param callback Function to call when the API call completes
 	 * On success the callback will contain a dpp::thread_map object in confirmation_callback_t::value. On failure, the value is undefined and confirmation_callback_t::is_error() method will return true. You can obtain full error details with confirmation_callback_t::get_error().
@@ -3148,7 +3250,7 @@ public:
 	 * @param callback Function to call when the API call completes.
 	 * On success the callback will contain a dpp::sticker object in confirmation_callback_t::value. On failure, the value is undefined and confirmation_callback_t::is_error() method will return true. You can obtain full error details with confirmation_callback_t::get_error().
 	 */
-	void guild_sticker_create(sticker &s, command_completion_event_t callback = utility::log_error());
+	void guild_sticker_create(const sticker &s, command_completion_event_t callback = utility::log_error());
 
 	/**
 	 * @brief Modify a sticker in a guild
@@ -3158,7 +3260,7 @@ public:
 	 * @param callback Function to call when the API call completes.
 	 * On success the callback will contain a dpp::sticker object in confirmation_callback_t::value. On failure, the value is undefined and confirmation_callback_t::is_error() method will return true. You can obtain full error details with confirmation_callback_t::get_error().
 	 */
-	void guild_sticker_modify(sticker &s, command_completion_event_t callback = utility::log_error());
+	void guild_sticker_modify(const sticker &s, command_completion_event_t callback = utility::log_error());
 
 	/**
 	 * @brief Delete a sticker from a guild
@@ -3430,4 +3532,4 @@ public:
 
 };
 
-};
+} // namespace dpp

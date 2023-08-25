@@ -54,10 +54,6 @@ user::user() :
 {
 }
 
-user::~user()
-{
-}
-
 std::string user::get_mention(const snowflake& id) {
 	return utility::user_mention(id);
 }
@@ -67,6 +63,7 @@ std::string user::build_json(bool with_id) const {
 
 	j["id"] = id;
 	j["username"] = username;
+	j["global_name"] = global_name; 
 	j["avatar"] = avatar.to_string();
 	j["discriminator"] = discriminator;
 	j["bot"] = is_bot();
@@ -96,9 +93,6 @@ user_identified::user_identified() : user(), accent_color(0), verified(false) {
 user_identified::user_identified(const user& u): user(u), accent_color(0), verified(false) {
 }
 
-user_identified::~user_identified() {
-}
-
 std::string user::get_avatar_url(uint16_t size, const image_type format, bool prefer_animated) const {
 	if (this->avatar.to_string().empty()) {
 		return get_default_avatar_url();
@@ -116,12 +110,19 @@ std::string user::get_default_avatar_url() const {
 		return utility::cdn_endpoint_url({ i_png },
 										 "embed/avatars/" + std::to_string(this->discriminator % 5),
 										 i_png, 0);
+	} else if (this->id){
+		return utility::cdn_endpoint_url({ i_png },
+										 "embed/avatars/" + std::to_string((this->id >> 22) % 6),
+										 i_png, 0);
 	} else {
 		return std::string();
 	}
 }
 
 std::string user::format_username() const {
+	if (!global_name.empty()) {
+		return global_name;
+	}
 	return username + '#' + leading_zeroes(discriminator, 4);
 }
 
@@ -265,6 +266,7 @@ void from_json(const nlohmann::json& j, user_identified& u) {
 void from_json(const nlohmann::json& j, user& u) {
 	u.id = snowflake_not_null(&j, "id");
 	u.username = string_not_null(&j, "username");
+	u.global_name = string_not_null(&j, "global_name");
 
 	std::string av = string_not_null(&j, "avatar");
 	if (av.length() > 2 && av.substr(0, 2) == "a_") {
@@ -291,4 +293,4 @@ void from_json(const nlohmann::json& j, user& u) {
 	}
 }
 
-};
+} // namespace dpp

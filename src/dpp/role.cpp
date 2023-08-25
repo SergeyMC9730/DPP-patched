@@ -2,6 +2,7 @@
  *
  * D++, A Lightweight C++ library for Discord
  *
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright 2021 Craig Edwards and D++ contributors 
  * (https://github.com/brainboxdotcc/DPP/graphs/contributors)
  *
@@ -31,6 +32,11 @@
 namespace dpp {
 
 using json = nlohmann::json;
+
+/* A mapping of discord's flag values to our bitmap (they're different bit positions to fit other stuff in) */
+std::map<uint8_t, dpp::role_flags> rolemap = {
+		{ 1 << 0,       dpp::r_in_prompt },
+};
 
 role::role() :
 	managed(),
@@ -70,6 +76,14 @@ role& role::fill_from_json(snowflake _guild_id, nlohmann::json* j)
 	this->colour = int32_not_null(j, "color");
 	this->position = int8_not_null(j, "position");
 	this->permissions = snowflake_not_null(j, "permissions");
+
+	uint8_t f = int8_not_null(j, "flags");
+	for (auto & flag : rolemap) {
+		if (f & flag.first) {
+			this->flags |= flag.second;
+		}
+	}
+
 	this->flags |= bool_not_null(j, "hoist") ? dpp::r_hoist : 0;
 	this->flags |= bool_not_null(j, "managed") ? dpp::r_managed : 0;
 	this->flags |= bool_not_null(j, "mentionable") ? dpp::r_mentionable : 0;
@@ -165,6 +179,10 @@ bool role::is_available_for_purchase() const {
 
 bool role::is_linked() const {
 	return this->flags & dpp::r_guild_connections;
+}
+
+bool role::is_selectable_in_prompt() const {
+	return this->flags & dpp::r_in_prompt;
 }
 
 bool role::has_create_instant_invite() const {
@@ -339,6 +357,10 @@ bool role::has_use_soundboard() const {
 	return has_administrator() || permissions.has(p_use_soundboard);
 }
 
+bool role::has_use_external_sounds() const {
+	return has_administrator() || permissions.has(p_use_external_sounds);
+}
+
 bool role::has_send_voice_messages() const {
 	return has_administrator() || permissions.has(p_send_voice_messages);
 }
@@ -474,4 +496,4 @@ std::string application_role_connection::build_json(bool with_id) const {
 }
 
 
-};
+} // namespace dpp

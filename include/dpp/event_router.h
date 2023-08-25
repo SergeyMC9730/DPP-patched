@@ -32,7 +32,7 @@
 #include <mutex>
 #include <shared_mutex>
 #include <cstring>
-#include <dpp/coro.h>
+#include <dpp/coro/job.h>
 
 using  json = nlohmann::json;
 
@@ -105,14 +105,18 @@ private:
 #ifdef DPP_CORO
 	/**
 	 * @brief Container for event listeners (coroutines only)
+	 *
+	 * Note: keep a listener's parameter as a value type, the event passed can die while a coroutine is suspended
 	 */
-	std::map<event_handle, std::function<dpp::task(T)>> coroutine_container;
+	std::map<event_handle, std::function<dpp::job(const T&)>> coroutine_container;
 #else
-       /**
-        * @brief Dummy container to keep the struct size same
-        */
-       std::map<event_handle, std::function<void(T)>> dummy_container;
-#endif
+#ifndef _DOXYGEN_
+	/**
+	 * @brief Dummy container to keep the struct size same
+	 */
+	std::map<event_handle, std::function<void(T)>> dummy_container;
+#endif /* _DOXYGEN_ */
+#endif /* DPP_CORO */
 
 
 	/**
@@ -154,18 +158,18 @@ public:
 			warning(event);
 		}
 		std::shared_lock l(lock);
-		std::for_each(dispatch_container.begin(), dispatch_container.end(), [&](auto &ev) {
+		for (const auto& [_, listener] : dispatch_container) {
 			if (!event.is_cancelled()) {
-				ev.second(event);
+				listener(event);
 			}
-		});
+		};
 #ifdef DPP_CORO
-		std::for_each(coroutine_container.begin(), coroutine_container.end(), [&](auto &ev) {
+		for (const auto& [_, listener] : coroutine_container) {
 			if (!event.is_cancelled()) {
-				ev.second(event);
+				listener(event);
 			}
-		});
-#endif
+		}
+#endif  /* DPP_CORO */
 	};
 
 	/**
@@ -177,7 +181,11 @@ public:
 	 */
 	bool empty() const {
 		std::shared_lock l(lock);
+#ifdef DPP_CORO
+		return dispatch_container.empty() && coroutine_container.empty();
+#else
 		return dispatch_container.empty();
+#endif /* DPP_CORO */
 	}
 
 	/**
@@ -210,7 +218,7 @@ public:
 	 * The lambda should follow the signature specified when declaring
 	 * the event object and should take exactly one parameter derived
 	 * from event_dispatch_t.
-	 * 
+	 *
 	 * @param func Function lambda to attach to event
 	 * @return event_handle An event handle unique to this event, used to
 	 * detach the listener from the event later if necessary.
@@ -219,17 +227,27 @@ public:
 		std::unique_lock l(lock);
 		event_handle h = next_handle++;
 		dispatch_container.emplace(h, func);
-		return h;		
+		return h;
 	}
 
 #ifdef DPP_CORO
-	event_handle co_attach(std::function<dpp::task(T)> func) {
+	/**
+	 * @brief Attach a coroutine task to the event, adding a listener.
+	 * The coroutine should follow the signature specified when declaring
+	 * the event object and should take exactly one parameter derived
+	 * from event_dispatch_t.
+	 *
+	 * @param func Coroutine task to attack to the event. <b>It MUST take the event by value.</b>
+	 * @return event_handle An event handle unique to this event, used to
+	 * detach the listener from the event later if necessary.
+	 */
+	event_handle co_attach(std::function<job(T)> func) {
 		std::unique_lock l(lock);
 		event_handle h = next_handle++;
 		coroutine_container.emplace(h, func);
-		return h;		
+		return h;
 	}
-#endif
+#endif /* DPP_CORO */
 	/**
 	 * @brief Detach a listener from the event using a previously obtained ID.
 	 * 
@@ -239,8 +257,12 @@ public:
 	 */
 	bool detach(const event_handle& handle) {
 		std::unique_lock l(lock);
+#ifdef DPP_CORO
+		return this->dispatch_container.erase(handle) || this->coroutine_container.erase(handle);
+#else
 		return this->dispatch_container.erase(handle);
+#endif /* DPP_CORO */
 	}
 };
 
-};
+} // namespace dpp

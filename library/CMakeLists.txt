@@ -20,6 +20,10 @@ if (HAVE_PTHREAD_SETNAME_NP)
 	}" HAVE_TWO_PARAMETER_SETNAME_NP)
 endif()
 
+if(NOT DEFINED AVX_TYPE)
+	include("${CMAKE_CURRENT_SOURCE_DIR}/../cmake/DetectArchitecture.cmake")
+endif()
+
 add_compile_definitions(DPP_OS=${CMAKE_SYSTEM_NAME})
 
 if(WIN32 AND NOT MINGW)
@@ -49,11 +53,14 @@ if(WIN32 AND NOT MINGW)
 
 		include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../win32/include")
 
+		add_compile_options("/bigobj")
 		add_compile_definitions(OPENSSL_SYS_WIN32)
 		add_compile_definitions(_WINSOCK_DEPRECATED_NO_WARNINGS)
 		add_compile_definitions(WIN32_LEAN_AND_MEAN)
 		add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
 		add_compile_definitions(_CRT_NONSTDC_NO_DEPRECATE)
+		add_compile_definitions("${AVX_TYPE}")
+		add_compile_options("${AVX_FLAG}")
 
 	endif()
 endif()
@@ -74,6 +81,12 @@ if (UNIX)
 			COMMAND php buildtools/make_struct.php "\\Dpp\\Generator\\SyncGenerator"
 		)
  		set_source_files_properties( "${CMAKE_CURRENT_SOURCE_DIR}/../include/dpp/cluster_sync_calls.h" PROPERTIES GENERATED TRUE ) 
+		# target for unicode_emojis.h
+		execute_process(
+			WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/.."
+			COMMAND php buildtools/emojis.php
+		)
+		set_source_files_properties( "${CMAKE_CURRENT_SOURCE_DIR}/../include/dpp/unicode_emojis.h" PROPERTIES GENERATED TRUE )
 	else()
 		message("-- Autogeneration is not available")
  	endif()
@@ -169,10 +182,11 @@ if(UNIX OR MSYS)
 endif()
 
 if(MSVC)
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /sdl /DFD_SETSIZE=1024")
 	if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++17 /Od /DEBUG /Zi /sdl /DFD_SETSIZE=1024")
+		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj /Od /DEBUG /Zi")
 	else()
-		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++17 /O2 /Oi /Oy /Gy /sdl /DFD_SETSIZE=1024")
+		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /O2 /Oi /Oy /Gy")
 	endif()
 	if(NOT "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP /Zc:preprocessor")
@@ -216,6 +230,15 @@ foreach (fullmodname ${subdirlist})
 		$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include/dpp>
 	)
 
+	if (DPP_USE_PCH)
+		target_precompile_headers(${modname} PRIVATE
+			"${CMAKE_CURRENT_SOURCE_DIR}/../include/dpp/cluster.h"
+			"${CMAKE_CURRENT_SOURCE_DIR}/../include/dpp/json.h"
+			"${CMAKE_CURRENT_SOURCE_DIR}/../include/dpp/utility.h"
+			"${CMAKE_CURRENT_SOURCE_DIR}/../include/dpp/restresults.h"
+		)
+	endif()
+
 	if (WIN32 AND NOT MINGW)
 		if (NOT WINDOWS_32_BIT)
 			target_link_libraries(${modname} PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../win32/lib/libssl.lib"
@@ -257,6 +280,66 @@ target_compile_features(dpp PRIVATE cxx_thread_local)
 target_compile_features(dpp PRIVATE cxx_variadic_templates)
 target_compile_features(dpp PRIVATE cxx_attribute_deprecated)
 
+if(HAVE_PRCTL)
+	target_compile_definitions(dpp PRIVATE HAVE_PRCTL)
+endif()
+if(HAVE_PTHREAD_SETNAME_NP)
+	target_compile_definitions(dpp PRIVATE HAVE_PTHREAD_SETNAME_NP)
+endif()
+
+if(DPP_CORO)
+	message("-- ${Yellow}Enabled experimental coroutine feature${ColourReset}")
+	set(CMAKE_CXX_STANDARD 20)
+	target_compile_features(dpp PUBLIC cxx_std_20)
+	if(WIN32 AND NOT MINGW)
+		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /await:strict")
+	else()
+		if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+			if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 14.0.0) # clang >= 14 has native support
+				message("-- ${Yellow}Clang < 14 - attempting to detect if using libc++ or stdc++${ColourReset}")
+				check_cxx_source_compiles("
+					#include <iostream>
+
+					int a =
+					#ifdef __GLIBCXX__
+						1;
+					#else
+						fgsfds;
+					#endif
+
+					int main(int argc, char* argv[])
+					{
+						return 0;
+					}
+					" IS_GLIBCXX)
+				if(IS_GLIBCXX)
+					if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 12.0.0)
+						message(FATAL_ERROR "Clang with stdc++ and coroutines requires version 12.0.0 or above")
+					endif()
+					message("-- ${Yellow}Detected stdc++ - enabling mock std::experimental namespace${ColourReset}")
+					target_compile_definitions(dpp PUBLIC "STDCORO_GLIBCXX_COMPAT")
+				else()
+					message("-- ${Yellow}Detected libc++ - using <experimental/coroutine>")
+					if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9.0.0)
+						set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcoroutines-ts")
+					endif()
+				endif()
+				message("-- ${Yellow}Note - coroutines in clang < 14 are experimental, upgrading is recommended")
+			endif()
+		elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+			if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 10.0)
+				message(FATAL_ERROR "Coroutines with g++ require version 10 or above")
+			elseif(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 11.0)
+				message("-- ${Yellow}Note - coroutines in g++10 are experimental, upgrading to g++11 or above is recommended")
+				set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcoroutines")
+			endif()
+		endif()
+	endif()
+	target_compile_definitions(dpp PUBLIC DPP_CORO)
+	execute_process(WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/.."
+					COMMAND php buildtools/make_struct.php "\\Dpp\\Generator\\CoroGenerator")
+endif()
+
 if (DPP_BUILD_TEST)
 	enable_testing(${CMAKE_CURRENT_SOURCE_DIR}/..)
 	file(GLOB testnamelist "${CMAKE_CURRENT_SOURCE_DIR}/../src/*")
@@ -267,7 +350,14 @@ if (DPP_BUILD_TEST)
 			set (testsrc "")
 			file(GLOB testsrc "${modules_dir}/${testname}/*.cpp")
 			add_executable(${testname} ${testsrc})
-			target_compile_features(${testname} PRIVATE cxx_std_17)
+			if (DPP_CORO)
+				target_compile_features(${testname} PRIVATE cxx_std_20)
+			else()
+				target_compile_features(${testname} PRIVATE cxx_std_17)
+			endif()
+			if (MSVC)
+				target_compile_options(${testname} PRIVATE /utf-8)
+			endif()
 			target_link_libraries(${testname} PUBLIC ${modname})
 		endif()
 	endforeach()
@@ -276,27 +366,6 @@ if (DPP_BUILD_TEST)
 		COMMAND library/unittest
 		WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/library
 	)
-endif()
-
-if(HAVE_PRCTL)
-	target_compile_definitions(dpp PRIVATE HAVE_PRCTL)
-endif()
-if(HAVE_PTHREAD_SETNAME_NP)
-	target_compile_definitions(dpp PRIVATE HAVE_PTHREAD_SETNAME_NP)
-endif()
-
-if(DPP_CORO)
-	message("-- ${Yellow}Enabled experimental coroutine support${ColourReset}")
-	set(CMAKE_CXX_STANDARD 20)
-	target_compile_features(dpp PRIVATE cxx_std_20)
-	if(WIN32 AND NOT MINGW)
-		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /await:strict")
-	else()
-		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcoroutines")
-	endif()
-	target_compile_definitions(dpp PUBLIC DPP_CORO)
-	execute_process(WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/.."
-					COMMAND php buildtools/make_struct.php "\\Dpp\\Generator\\CoroGenerator")
 endif()
 	
 if(WIN32 AND NOT MINGW)

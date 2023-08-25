@@ -2,6 +2,7 @@
  *
  * D++, A Lightweight C++ library for Discord
  *
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright 2021 Craig Edwards and D++ contributors 
  * (https://github.com/brainboxdotcc/DPP/graphs/contributors)
  *
@@ -141,10 +142,8 @@ void interaction_create_t::reply(const message & m, command_completion_event_t c
 }
 
 void interaction_create_t::thinking(bool ephemeral, command_completion_event_t callback) const {
-	message msg;
-	msg.content = "*";
+	message msg{this->command.channel_id, std::string{"*"}};
 	msg.guild_id = this->command.guild_id;
-	msg.channel_id = this->command.channel_id;
 	if (ephemeral) {
 		msg.set_flags(dpp::m_ephemeral);
 	}
@@ -207,6 +206,57 @@ void interaction_create_t::delete_original_response(command_completion_event_t c
 		}
 	});
 }
+
+
+#ifdef DPP_CORO
+async<confirmation_callback_t> interaction_create_t::co_reply() const {
+	return dpp::async{[this] <typename T> (T&& cb) { this->reply(std::forward<T>(cb)); }};
+}
+
+async<confirmation_callback_t> interaction_create_t::co_reply(interaction_response_type t, const message & m) const {
+	return dpp::async{[&, this] <typename T> (T&& cb) { this->reply(t, m, std::forward<T>(cb)); }};
+}
+
+async<confirmation_callback_t> interaction_create_t::co_reply(interaction_response_type t, const std::string & mt) const {
+	return dpp::async{[&, this] <typename T> (T&& cb) { this->reply(t, mt, std::forward<T>(cb)); }};
+}
+
+async<confirmation_callback_t> interaction_create_t::co_reply(const message & m) const {
+	return dpp::async{[&, this] <typename T> (T&& cb) { this->reply(m, std::forward<T>(cb)); }};
+}
+
+async<confirmation_callback_t> interaction_create_t::co_reply(const std::string & mt) const {
+	return dpp::async{[&, this] <typename T> (T&& cb) { this->reply(mt, std::forward<T>(cb)); }};
+}
+
+async<confirmation_callback_t> interaction_create_t::co_dialog(const interaction_modal_response& mr) const {
+	return dpp::async{[&, this] <typename T> (T&& cb) { this->dialog(mr, std::forward<T>(cb)); }};
+}
+
+async<confirmation_callback_t> interaction_create_t::co_edit_response(const message & m) const {
+	return dpp::async{[&, this] <typename T> (T&& cb) { this->edit_response(m, std::forward<T>(cb)); }};
+}
+
+async<confirmation_callback_t> interaction_create_t::co_edit_response(const std::string & mt) const {
+	return dpp::async{[&, this] <typename T> (T&& cb) { this->edit_response(mt, std::forward<T>(cb)); }};
+}
+
+async<confirmation_callback_t> interaction_create_t::co_thinking(bool ephemeral) const {
+	return dpp::async{[&, this] <typename T> (T&& cb) { this->thinking(ephemeral, std::forward<T>(cb)); }};
+}
+
+async<confirmation_callback_t> interaction_create_t::co_get_original_response() const {
+	return dpp::async{[&, this] <typename T> (T&& cb) { this->get_original_response(std::forward<T>(cb)); }};
+}
+
+async<confirmation_callback_t> interaction_create_t::co_edit_original_response(const message & m) const {
+	return dpp::async{[&, this] <typename T> (T&& cb) { this->edit_original_response(m, std::forward<T>(cb)); }};
+}
+
+async<confirmation_callback_t> interaction_create_t::co_delete_original_response() const {
+	return dpp::async{[&, this] <typename T> (T&& cb) { this->delete_original_response(std::forward<T>(cb)); }};
+}
+#endif /* DPP_CORO */
 
 command_value interaction_create_t::get_parameter(const std::string& name) const
 {
@@ -330,4 +380,4 @@ event_ctor(automod_rule_create_t, event_dispatch_t);
 event_ctor(automod_rule_delete_t, event_dispatch_t);
 event_ctor(automod_rule_update_t, event_dispatch_t);
 event_ctor(automod_rule_execute_t, event_dispatch_t);
-};
+} // namespace dpp

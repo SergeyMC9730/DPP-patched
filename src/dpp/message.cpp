@@ -18,6 +18,7 @@
  * limitations under the License.
  *
  ************************************************************************************/
+#include <algorithm>
 #include <dpp/message.h>
 #include <dpp/user.h>
 #include <dpp/channel.h>
@@ -47,35 +48,45 @@ component::component() :
 
 component& component::fill_from_json(nlohmann::json* j) {
 	type = static_cast<component_type>(int8_not_null(j, "type"));
+	label = string_not_null(j, "label");
+	custom_id = string_not_null(j, "custom_id");
+	disabled = bool_not_null(j, "disabled");
+	placeholder = string_not_null(j, "placeholder");
+	if (j->contains("min_values") && j->at("min_values").is_number_integer()) {
+		min_values = j->at("min_values").get<int32_t>();
+	}
+	if (j->contains("max_values") && j->at("max_values").is_number_integer()) {
+		max_values = j->at("max_values").get<int32_t>();
+	}
 	if (type == cot_action_row) {
-		for (json sub_component : (*j)["components"]) {
-			dpp::component new_component;
-			new_component.fill_from_json(&sub_component);
-			components.emplace_back(new_component); 
-		}
-	} else if (type == cot_button) {
-		label = string_not_null(j, "label");
+		set_object_array_not_null<component>(j, "components", components);
+	} else if (type == cot_button) { // button specific fields
 		style = static_cast<component_style>(int8_not_null(j, "style"));
-		custom_id = string_not_null(j, "custom_id");
-		disabled = bool_not_null(j, "disabled");
+		url = string_not_null(j, "url");
 		if (j->contains("emoji")) {
 			json emo = (*j)["emoji"];
 			emoji.id = snowflake_not_null(&emo, "id");
 			emoji.name = string_not_null(&emo, "name");
 			emoji.animated = bool_not_null(&emo, "animated");
 		}
-	} else if (type == cot_selectmenu) {
-		label = "";
-		custom_id = string_not_null(j, "custom_id");
-		disabled = bool_not_null(j, "disabled");
-		if (j->contains("options")) {
-			for(json opt : (*j)["options"]) {
-				options.push_back(dpp::select_option().fill_from_json(&opt));
+	} else if (type == cot_selectmenu) { // string select menu specific fields
+		set_object_array_not_null<select_option>(j, "options", options);
+	} else if (type == cot_channel_selectmenu) { // channel select menu specific fields
+		if (j->contains("channel_types")) {
+			for (json &ct : (*j)["channel_types"]) {
+				if (ct.is_number_integer()) {
+					channel_types.push_back(ct.get<dpp::channel_type>());
+				}
 			}
 		}
-	} else if (type == cot_text) {
-		custom_id = string_not_null(j, "custom_id");
-		type = (component_type)int8_not_null(j, "type");
+	} else if (type == cot_text) { // text inputs (modal) specific fields
+		text_style = static_cast<text_style_type>(int8_not_null(j, "style"));
+		if (j->contains("min_length") && j->at("min_length").is_number_integer()) {
+			min_length = j->at("min_length").get<int32_t>();
+		}
+		if (j->contains("max_length") && j->at("max_length").is_number_integer()) {
+			max_length = j->at("max_length").get<int32_t>();
+		}
 		required = bool_not_null(j, "required");
 		json v = (*j)["value"];
 		if (!v.is_null() && v.is_number_integer()) {
@@ -84,19 +95,6 @@ component& component::fill_from_json(nlohmann::json* j) {
 			value = v.get<double>();
 		} else if (!v.is_null() && v.is_string()) {
 			value = v.get<std::string>();
-		}
-	} else if (type == cot_user_selectmenu || type == cot_role_selectmenu || type == cot_mentionable_selectmenu) {
-		custom_id = string_not_null(j, "custom_id");
-		disabled = bool_not_null(j, "disabled");
-	} else if (type == cot_channel_selectmenu) {
-		custom_id = string_not_null(j, "custom_id");
-		disabled = bool_not_null(j, "disabled");
-		if (j->contains("channel_types")) {
-			for (json &ct : (*j)["channel_types"]) {
-				if (ct.is_number_integer()) {
-					channel_types.push_back(ct.get<dpp::channel_type>());
-				}
-			}
 		}
 	}
 	return *this;
@@ -219,13 +217,13 @@ component& component::set_emoji(const std::string& name, dpp::snowflake id, bool
 
 component& component::set_min_length(uint32_t min_l)
 {
-	min_length = min_l;
+	min_length = static_cast<int32_t>(min_l);
 	return *this;
 }
 
 component& component::set_max_length(uint32_t max_l)
 {
-	max_length = max_l;
+	max_length = static_cast<int32_t>(max_l);
 	return *this;
 }
 
@@ -409,6 +407,7 @@ select_option& select_option::fill_from_json(nlohmann::json* j) {
 		emoji.name = string_not_null(&emoj, "name");
 		emoji.id = snowflake_not_null(&emoj, "id");
 	}
+	is_default = bool_not_null(j, "default");
 	return *this;
 }
 
@@ -424,12 +423,12 @@ component& component::set_placeholder(const std::string &_placeholder) {
 }
 
 component& component::set_min_values(uint32_t _min_values) {
-	min_values = _min_values;
+	min_values = static_cast<int32_t>(_min_values);
 	return *this;
 }
 
 component& component::set_max_values(uint32_t _max_values) {
-	max_values = _max_values;
+	max_values = static_cast<int32_t>(_max_values);
 	return *this;
 }
 
@@ -718,6 +717,10 @@ embed& embed::set_color(uint32_t col) {
 	return *this;
 }
 
+embed& embed::set_colour(uint32_t col) {
+	return this->set_color(col);
+}
+
 embed& embed::set_url(const std::string &u) {
 	url = u;
 	return *this;
@@ -745,11 +748,13 @@ reaction::reaction() {
 }
 
 reaction::reaction(json* j) {
-	count = (*j)["count"];
-	me = (*j)["me"];
-	json emoji = (*j)["emoji"];
-	emoji_id = snowflake_not_null(&emoji, "id");
-	emoji_name = string_not_null(&emoji, "name");
+	count = int32_not_null(j, "count");
+	me = bool_not_null(j, "me");
+	if (j->contains("emoji")) {
+		json emoji = (*j)["emoji"];
+		emoji_id = snowflake_not_null(&emoji, "id");
+		emoji_name = string_not_null(&emoji, "name");
+	}
 }
 
 attachment::attachment(struct message* o) 
@@ -758,6 +763,7 @@ attachment::attachment(struct message* o)
 	, width(0)
 	, height(0)
 	, ephemeral(false)
+	, flags(0)
 	, owner(o)
 {
 }
@@ -775,6 +781,7 @@ attachment::attachment(struct message* o, json *j) : attachment(o) {
 	this->ephemeral = bool_not_null(j, "ephemeral");
 	this->duration_secs = double_not_null(j, "duration_secs");
 	this->waveform = string_not_null(j, "waveform");
+	this->flags = int8_not_null(j, "flags");
 }
 
 void attachment::download(http_completion_event callback) const {
@@ -785,6 +792,10 @@ void attachment::download(http_completion_event callback) const {
 	if (callback && this->id && !this->url.empty()) {
 		owner->owner->request(this->url, dpp::m_get, callback);
 	}
+}
+
+bool attachment::is_remix() const {
+	return flags & a_is_remix;
 }
 
 std::string message::build_json(bool with_id, bool is_interaction_response) const {
@@ -1004,12 +1015,7 @@ message& message::fill_from_json(json* d, cache_policy_t cp) {
 		interaction.type = int8_not_null(&inter, "type");
 		if (inter.contains("user") && !inter["user"].is_null()) from_json(inter["user"], interaction.usr);
 	}
-	if (d->find("sticker_items") != d->end()) {
-		json &sub = (*d)["sticker_items"];
-		for (auto & sticker_raw : sub) {
-			stickers.emplace_back(dpp::sticker().fill_from_json(&sticker_raw));
-		}
-	}
+	set_object_array_not_null<sticker>(d, "sticker_items", stickers);
 	if (d->find("mentions") != d->end()) {
 		json &sub = (*d)["mentions"];
 		for (auto & m : sub) {
@@ -1018,20 +1024,8 @@ message& message::fill_from_json(json* d, cache_policy_t cp) {
 			mentions.push_back({u, gm});
 		}
 	}
-	if (d->find("mention_roles") != d->end()) {
-		for (auto & m : (*d)["mention_roles"]) {
-			try {
-				snowflake rid = std::stoull(static_cast<const std::string&>(m));
-				mention_roles.push_back(rid);
-			} catch (const std::exception&) {}
-		}
-	}
-	if (d->find("mention_channels") != d->end()) {
-		json &sub = (*d)["mention_channels"];
-		for (auto & m : sub) {
-			mention_channels.emplace_back(dpp::channel().fill_from_json(&m));
-		}
-	}
+	set_snowflake_array_not_null(d, "mention_roles", mention_roles);
+	set_object_array_not_null<channel>(d, "mention_channels", mention_channels);
 	/* Fill in member record, cache uncached ones */
 	guild* g = find_guild(this->guild_id);
 	this->member = {};
@@ -1070,12 +1064,7 @@ message& message::fill_from_json(json* d, cache_policy_t cp) {
 			this->embeds.emplace_back(embed(&e));
 		}
 	}
-	if (d->find("components") != d->end()) {
-		json & el = (*d)["components"];
-		for (auto& e : el) {
-			this->components.emplace_back(component().fill_from_json(&e));
-		}
-	}
+	set_object_array_not_null<component>(d, "components", this->components);
 	this->content = string_not_null(d, "content");
 	this->sent = ts_not_null(d, "timestamp");
 	this->edited = ts_not_null(d, "edited_timestamp");
@@ -1105,6 +1094,15 @@ message& message::fill_from_json(json* d, cache_policy_t cp) {
 		message_reference.fail_if_not_exists = bool_not_null(&mr, "fail_if_not_exists");
 	}
 	return *this;
+}
+
+bool message::has_remix_attachment() const {
+	return std::any_of(
+		attachments.begin(),
+		attachments.end(),
+		[](const auto& a) -> bool {
+			return a.is_remix();
+		});
 }
 
 sticker::sticker() : managed(0), pack_id(0), type(st_standard), format_type(sf_png), available(true), guild_id(0), sort_value(0) {
@@ -1212,4 +1210,4 @@ sticker& sticker::set_file_content(const std::string &fc) {
 }
 
 
-};
+} // namespace dpp

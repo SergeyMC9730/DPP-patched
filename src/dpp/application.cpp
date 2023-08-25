@@ -2,6 +2,7 @@
  *
  * D++, A Lightweight C++ library for Discord
  *
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright 2021 Craig Edwards and D++ contributors 
  * (https://github.com/brainboxdotcc/DPP/graphs/contributors)
  *
@@ -83,6 +84,16 @@ application& application::fill_from_json(nlohmann::json* j) {
 		for (auto m : t["members"]) {
 			team_member tm;
 			tm.membership_state = (team_member_status)int32_not_null(&m, "membership_state");
+			std::string member_role = string_not_null(&m, "role");
+			if (member_role == "owner") {
+				tm.member_role = tmr_owner;
+			} else if (member_role == "admin") {
+				tm.member_role = tmr_admin;
+			} else if (member_role == "developer") {
+				tm.member_role = tmr_developer;
+			} else {
+				tm.member_role = tmr_readonly;
+			}
 			set_string_not_null(&m, "permissions", tm.permissions);
 			set_snowflake_not_null(&m, "team_id", tm.team_id);
 			tm.member_user = user().fill_from_json(&m["user"]);
@@ -113,5 +124,5 @@ std::string application::get_icon_url(uint16_t size, const image_type format) co
 	}
 }
 
-};
+} // namespace dpp
 
